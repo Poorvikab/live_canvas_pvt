@@ -413,6 +413,26 @@
 
 <script src="http://127.0.0.1:3000/socket.io/socket.io.js"></script>
 
+<!-- Hydrate session user synchronously before main script runs -->
+<script>
+    (function () {
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/auth/me', false); // synchronous
+            xhr.withCredentials = true;
+            xhr.send();
+            if (xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                window.__currentUser = data.user || null;
+            } else {
+                window.__currentUser = null;
+            }
+        } catch (e) {
+            window.__currentUser = null;
+        }
+    })();
+</script>
+
 <script src="script.js"></script>
 <script src="cursor.js"></script>
 

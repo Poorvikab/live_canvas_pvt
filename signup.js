@@ -1,4 +1,4 @@
-// Signup form: validates a new account, stores it locally, and starts a session.
+// Signup form: validates a new account, stores it in NeonDB, and starts a session.
 const signupBtn = document.getElementById("signupBtn");
 const passwordInput = document.getElementById("password");
 const togglePassword = document.getElementById("togglePassword");
@@ -15,6 +15,7 @@ togglePassword.addEventListener("click", () => {
         eyeIcon.alt = "Show password";
     }
 });
+
 // Displays validation feedback next to the registration form.
 function setFormMessage(message, type = "error") {
     const messageBox = document.getElementById("formMessage");
@@ -24,26 +25,7 @@ function setFormMessage(message, type = "error") {
     messageBox.className = `form-message ${type}`;
 }
 
-// Hashes a password before it is persisted, with a small fallback for older browsers.
-async function hashPassword(password) {
-    const text = password.trim();
-    if (typeof crypto !== "undefined" && crypto.subtle) {
-        const buffer = new TextEncoder().encode(text);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-        return Array.from(new Uint8Array(hashBuffer))
-            .map((byte) => byte.toString(16).padStart(2, "0"))
-            .join("");
-    }
-
-    let hash = 2166136261;
-    for (let i = 0; i < text.length; i++) {
-        hash ^= text.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(16);
-}
-
-// Validates and stores the account when the registration form is submitted.
+// Validates and creates the account when the registration form is submitted.
 signupBtn.addEventListener("click", async function () {
     const name =
             document.getElementById("name")
@@ -78,36 +60,33 @@ signupBtn.addEventListener("click", async function () {
     return;
 }
 
-    let users = JSON.parse(localStorage.getItem("users")) || [];
+    signupBtn.disabled = true;
+    signupBtn.textContent = "Creating account...";
 
-    const existingUser = users.find(function(user) {
-        return user.email.toLowerCase() === email.toLowerCase();
-    });
+    try {
+        const res = await fetch("/api/auth/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ name, email, password })
+        });
 
-    if (existingUser) {
-        setFormMessage("Account already exists.");
-        return;
+        const data = await res.json();
+
+        if (!res.ok) {
+            setFormMessage(data.error || "Signup failed.");
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get("redirect") || "saved.html";
+        window.location.href = redirect;
+
+    } catch (err) {
+        console.error("Signup error:", err);
+        setFormMessage("Could not connect to server. Please try again.");
+    } finally {
+        signupBtn.disabled = false;
+        signupBtn.textContent = "Sign Up";
     }
-
-    const passwordHash = await hashPassword(password);
-    const newUser = {
-        name: name,
-        email: email,
-        password: passwordHash
-    };
-
-    users.push(newUser);
-    localStorage.setItem(
-        "users",
-        JSON.stringify(users)
-    );
-
-    const loggedInUser = {
-        name: newUser.name,
-        email: newUser.email
-    };
-    localStorage.setItem('loggedInUser', JSON.stringify(loggedInUser));
-    const params = new URLSearchParams(window.location.search);
-    const redirect = params.get('redirect') || 'saved.html';
-    window.location.href = redirect;
 });

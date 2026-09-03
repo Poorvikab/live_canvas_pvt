@@ -36,31 +36,11 @@ const boardId =
     sessionStorage.getItem("currentBoardId");
 
 function getSavedBoardCanvasStyle() {
-
-    if (!boardId) {
-        return "blank";
-    }
-
-    try {
-
-        const savedBoards = JSON.parse(
-            localStorage.getItem("savedBoards") || "[]"
-        );
-
-        const board = savedBoards.find(
-            item => String(item?.id || "").toUpperCase() === String(boardId).toUpperCase()
-        );
-
-        return typeof board?.canvasStyle === "string"
-            ? board.canvasStyle
-            : "blank";
-
-    } catch (error) {
-
-        return "blank";
-
-    }
-
+    // Canvas style is sent by the server via socket 'board-state'.
+    // Use sessionStorage as the initial hint (set when the board was created/joined).
+    const fromSession = sessionStorage.getItem('currentCanvasStyle');
+    if (fromSession) return fromSession;
+    return 'blank';
 }
 
 const savedBoardCanvasStyle = getSavedBoardCanvasStyle();
@@ -80,24 +60,8 @@ console.log("================================");
 
 let loggedInUser = null;
 
-try {
-
-    const storedUser =
-        localStorage.getItem("loggedInUser");
-
-    if (storedUser) {
-        loggedInUser = JSON.parse(storedUser);
-    }
-
-} catch (error) {
-
-    console.error(
-        "Could not read loggedInUser:",
-        error
-    );
-
-    loggedInUser = null;
-}
+// User is hydrated from /api/auth/me before this script runs (see index.html inline script)
+loggedInUser = window.__currentUser || null;
 
 
 // ============================================================
@@ -151,17 +115,9 @@ function updateAuthUI() {
         }
 
         let profileIdx =
-            localStorage.getItem("userProfilePicIdx");
-
-        if (!profileIdx) {
-            profileIdx =
-                String(Math.floor(Math.random() * 5) + 1);
-
-            localStorage.setItem(
-                "userProfilePicIdx",
-                profileIdx
-            );
-        }
+            (loggedInUser && loggedInUser.profilePicIdx)
+                ? loggedInUser.profilePicIdx
+                : String(Math.floor(Math.random() * 5) + 1);
 
         if (userProfileImg) {
             userProfileImg.src =
@@ -276,16 +232,13 @@ signupHeaderBtn?.addEventListener(
 );
 
 function handleCanvasLogout() {
-    localStorage.removeItem(
-        "loggedInUser"
-    );
-
     if (socket) {
         socket.disconnect();
     }
-
-    window.location.href =
-        "login.html";
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+        .finally(() => {
+            window.location.href = 'login.html';
+        });
 }
 
 dropdownLogoutBtn?.addEventListener(
@@ -378,11 +331,9 @@ function getUserAvatarIdx(name, fallbackIdx = 0) {
         (loggedInUser && (clean === (loggedInUser.name || "").toLowerCase() || clean === (loggedInUser.email || "").toLowerCase())) ||
         clean === currentUsername.toLowerCase()
     ) {
-        let stored = localStorage.getItem("userProfilePicIdx");
-        if (!stored) {
-            stored = String(Math.floor(Math.random() * 5) + 1);
-            localStorage.setItem("userProfilePicIdx", stored);
-        }
+        const stored = (loggedInUser && loggedInUser.profilePicIdx)
+            ? loggedInUser.profilePicIdx
+            : String(Math.floor(Math.random() * 5) + 1);
         userAvatarMap.set(clean, stored);
         return stored;
     }
@@ -393,7 +344,7 @@ function getUserAvatarIdx(name, fallbackIdx = 0) {
     }
     let assigned = ((hash + Number(fallbackIdx || 0)) % 5) + 1;
 
-    const myIdx = Number(localStorage.getItem("userProfilePicIdx") || 1);
+    const myIdx = Number((loggedInUser && loggedInUser.profilePicIdx) || 1);
     if (assigned === myIdx) {
         assigned = (myIdx % 5) + 1;
     }
@@ -659,7 +610,7 @@ if (
             );
 
             const myProfileIdx =
-                localStorage.getItem("userProfilePicIdx") || "1";
+                (loggedInUser && loggedInUser.profilePicIdx) || "1";
 
             socket.emit(
                 "join-room",
@@ -699,7 +650,7 @@ if (
                 currentUsername;
 
             const myProfileIdx =
-                localStorage.getItem("userProfilePicIdx") || "1";
+                (loggedInUser && loggedInUser.profilePicIdx) || "1";
 
             socket.emit(
                 "user-profile-sync",
@@ -1590,36 +1541,14 @@ function applyCanvasStyle(style, sync = true) {
     currentCanvasStyle =
         normalizeCanvasStyle(style);
 
-    // Keep the folder metadata aligned with later style changes so it remains
-    // the correct fallback when this board is opened again.
+    // Keep the board canvas style synced in NeonDB.
     if (sync && boardId) {
-
-        try {
-
-            const savedBoards = JSON.parse(
-                localStorage.getItem("savedBoards") || "[]"
-            );
-
-            const board = savedBoards.find(
-                item => String(item?.id || "").toUpperCase() === String(boardId).toUpperCase()
-            );
-
-            if (board && board.canvasStyle !== currentCanvasStyle) {
-
-                board.canvasStyle = currentCanvasStyle;
-                localStorage.setItem(
-                    "savedBoards",
-                    JSON.stringify(savedBoards)
-                );
-
-            }
-
-        } catch (error) {
-
-            console.warn("Could not save the board canvas style:", error);
-
-        }
-
+        fetch(`/api/boards/${boardId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ canvasStyle: currentCanvasStyle })
+        }).catch(err => console.warn('Could not sync canvas style to DB:', err));
     }
 
     notebookPage.setAttribute(
@@ -4045,15 +3974,6 @@ stickyBtn?.addEventListener("click", () => {
 function getInitialBoardName() {
     let name = sessionStorage.getItem("currentBoardName");
     if (name && name.trim()) return name.trim();
-
-    try {
-        const saved = JSON.parse(localStorage.getItem("savedBoards") || "[]");
-        const found = saved.find(b => String(b.id || "").toUpperCase() === String(boardId || "").toUpperCase());
-        if (found && found.name && found.name.trim()) {
-            return found.name.trim();
-        }
-    } catch (e) {}
-
     return boardId ? `Board ${boardId}` : "Untitled Board";
 }
 
@@ -4103,24 +4023,14 @@ function saveLocalCache() {
             JSON.stringify(data)
         );
 
+        // Sync board name to NeonDB
         if (boardId) {
-            try {
-                const boards = JSON.parse(localStorage.getItem('savedBoards') || '[]');
-                const idx = boards.findIndex(b => b.id === boardId);
-                if (idx !== -1) {
-                    boards[idx].name = currentTitle;
-                    boards[idx].updated = Date.now();
-                    localStorage.setItem('savedBoards', JSON.stringify(boards));
-                } else {
-                    boards.unshift({
-                        id: boardId,
-                        name: currentTitle,
-                        created: Date.now(),
-                        updated: Date.now()
-                    });
-                    localStorage.setItem('savedBoards', JSON.stringify(boards));
-                }
-            } catch (e) {}
+            fetch(`/api/boards/${boardId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: currentTitle })
+            }).catch(e => {});
         }
 
     } catch (error) {

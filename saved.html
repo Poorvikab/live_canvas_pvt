@@ -575,13 +575,13 @@
 
         .modal {
             background: #f3f1f8;
-            padding: 0 18px 16px;
+            padding: 0 18px 18px;
             border-radius: 22px;
             width: min(420px, calc(100vw - 24px));
             box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
             border: 3px solid rgba(50, 50, 70, 0.08);
-            overflow: hidden;
-            max-height: 78vh;
+            overflow-y: auto;
+            max-height: min(720px, calc(100vh - 32px));
             transform: translateY(8px) scale(.98);
             transition: transform .2s ease, opacity .2s ease;
             position: relative;
@@ -1008,15 +1008,11 @@
         </div>
 
         <script>
-            // Require login
-            try {
-                const user = JSON.parse(localStorage.getItem('loggedInUser'));
-                if (!user) {
-                    window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
-                }
-            } catch (e) {
-                window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
-            }
+            let currentUser = null;
+            let cachedBoards = [];
+            let currentSearchQuery = '';
+            let currentSort = 'recent';
+            let selectedOption = 'grid';
 
             const backdrop = document.getElementById('backdrop');
             const cancelBtn = document.getElementById('cancelBtn');
@@ -1043,28 +1039,6 @@
             const userProfileImg = document.getElementById('userProfileImg');
             const logoutBtn = document.getElementById('logoutBtn');
             const boardSearchInput = document.getElementById('boardSearchInput');
-
-            let currentSearchQuery = '';
-            let currentSort = 'recent';
-            let selectedOption = 'grid';
-
-            // Load user info and assign random profile picture (stored in localStorage)
-            try {
-                const user = JSON.parse(localStorage.getItem('loggedInUser'));
-                if (user) {
-                    // Set name and email in dropdown
-                    if (userMenuName) userMenuName.textContent = user.name || user.email || 'User';
-                    if (userMenuEmail) userMenuEmail.textContent = user.email || '';
-
-                    // Assign or retrieve random profile picture index
-                    let profileIdx = localStorage.getItem('userProfilePicIdx');
-                    if (!profileIdx) {
-                        profileIdx = Math.floor(Math.random() * 5) + 1;
-                        localStorage.setItem('userProfilePicIdx', profileIdx);
-                    }
-                    if (userProfileImg) userProfileImg.src = `assets/profile/${profileIdx}.png`;
-                }
-            } catch (e) { }
 
             // Stable board colours keep each saved project visually recognisable.
             const boardColorPairs = [
@@ -1116,21 +1090,10 @@
 
             // Reads saved boards, applies search/sort, then renders the project grid or empty state.
             function renderBoardList() {
-                const boards = JSON.parse(localStorage.getItem('savedBoards') || '[]');
+                const boards = cachedBoards;
                 const hasBoards = Array.isArray(boards) && boards.length > 0;
 
                 if (hasBoards) {
-                    let needsSave = false;
-                    boards.forEach((b, i) => {
-                        if (typeof b.colorIndex !== 'number') {
-                            b.colorIndex = (boards.length - 1 - i) % boardColorPairs.length;
-                            needsSave = true;
-                        }
-                    });
-                    if (needsSave) {
-                        localStorage.setItem('savedBoards', JSON.stringify(boards));
-                    }
-
                     document.querySelector('.board-shell').classList.add('has-boards');
                     boardList.hidden = false;
 
@@ -1154,7 +1117,7 @@
                         boardList.innerHTML = filteredBoards.map((board, index) => {
                             const colors = getBoardColor(board, index);
                             return `
-                        <div class="board-card" style="--board-color:${colors.color};--board-tab:${colors.tab};--board-dark:${colors.dark};" data-board-id="${board.id || ''}" data-board-name="${(board.name || 'Untitled').replace(/"/g, '&quot;')}">
+                        <div class="board-card" style="--board-color:${colors.color};--board-tab:${colors.tab};--board-dark:${colors.dark};" data-board-id="${board.id || ''}" data-board-name="${(board.name || 'Untitled').replace(/"/g, '&quot;')}" data-canvas-style="${board.canvasStyle || 'grid'}">
                             <div class="board-card-folder">
                                 <svg class="folder-svg" viewBox="0 0 220 200" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
                                     <!-- Back Tab -->
@@ -1179,9 +1142,11 @@
                             card.addEventListener('click', () => {
                                 const boardId = card.getAttribute('data-board-id');
                                 const boardName = card.getAttribute('data-board-name');
+                                const canvasStyle = card.getAttribute('data-canvas-style') || 'grid';
                                 if (!boardId) return;
                                 sessionStorage.setItem('currentBoardId', boardId);
                                 sessionStorage.setItem('currentBoardName', boardName);
+                                sessionStorage.setItem('currentCanvasStyle', canvasStyle);
                                 window.location.href = `index.html?board=${encodeURIComponent(boardId)}`;
                             });
                         });
@@ -1210,7 +1175,44 @@
                 emptyGraphic.style.display = 'block';
             }
 
-            // Toolbar, profile, search, and sort actions update the visible project list.
+            async function loadBoardsFromDB() {
+                try {
+                    const res = await fetch('/api/boards', { credentials: 'include' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        cachedBoards = data.boards || [];
+                        renderBoardList();
+                    }
+                } catch (e) {
+                    console.error('Failed to load boards from NeonDB:', e);
+                }
+            }
+
+            // Auth verification & initialization
+            async function initAuthAndBoards() {
+                try {
+                    const res = await fetch('/api/auth/me', { credentials: 'include' });
+                    if (!res.ok) {
+                        window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                        return;
+                    }
+                    const data = await res.json();
+                    currentUser = data.user;
+                    window.__currentUser = currentUser;
+
+                    if (userMenuName) userMenuName.textContent = currentUser.name || currentUser.email || 'User';
+                    if (userMenuEmail) userMenuEmail.textContent = currentUser.email || '';
+                    if (userProfileImg) userProfileImg.src = `assets/profile/${currentUser.profilePicIdx || '1'}.png`;
+
+                    await loadBoardsFromDB();
+                } catch (e) {
+                    window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                }
+            }
+
+            initAuthAndBoards();
+
+            // Toolbar, profile, search, and sort actions
             if (newBoardBtn) {
                 newBoardBtn.addEventListener('click', openModal);
             }
@@ -1250,8 +1252,10 @@
                 sortDropdown?.classList.remove('open');
             });
 
-            logoutBtn?.addEventListener('click', () => {
-                localStorage.removeItem('loggedInUser');
+            logoutBtn?.addEventListener('click', async () => {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                } catch (e) {}
                 window.location.href = 'login.html';
             });
 
@@ -1345,58 +1349,80 @@
                 gridOption.setAttribute('aria-pressed', 'true');
             }
 
-            renderBoardList();
             updateCreateButtonState();
 
-            // Creates a local board entry or opens a board shared by its code.
-            createBtn.addEventListener('click', () => {
+            // Creates a board entry in NeonDB or opens a board shared by its code.
+            createBtn.addEventListener('click', async () => {
                 const name = boardNameInput.value.trim();
                 if (!name) return;
 
-                const boards = JSON.parse(localStorage.getItem('savedBoards') || '[]');
+                createBtn.disabled = true;
                 const isJoinMode = document.querySelector('.modal-tab.active')?.dataset.mode === 'join';
 
                 if (isJoinMode) {
                     const boardId = name.replace(/[^a-z0-9]/gi, '').toUpperCase();
-                    if (!boardId) return;
-                    const existing = boards.find(board => String(board.id || '').toUpperCase() === boardId);
-                    const joinedBoard = existing || {
-                        id: boardId,
-                        name: boardId,
-                        template: selectedOption,
-                        canvasStyle: selectedOption === 'blank' ? 'blank' : selectedOption,
-                        colorIndex: boards.length % boardColorPairs.length,
-                        created: Date.now()
-                    };
-
-                    if (!existing) {
-                        boards.unshift(joinedBoard);
-                        localStorage.setItem('savedBoards', JSON.stringify(boards));
+                    if (!boardId) {
+                        createBtn.disabled = false;
+                        return;
                     }
 
-                    sessionStorage.setItem('currentBoardId', boardId);
-                    sessionStorage.setItem('currentCanvasStyle', selectedOption);
-                    sessionStorage.setItem('currentBoardName', joinedBoard.name || boardId);
-                    closeModal();
-                    renderBoardList();
-                    window.location.href = `index.html?board=${encodeURIComponent(boardId)}`;
+                    try {
+                        const res = await fetch('/api/boards', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                id: boardId,
+                                name: boardId,
+                                canvasStyle: selectedOption === 'blank' ? 'blank' : selectedOption,
+                                colorIndex: cachedBoards.length % boardColorPairs.length
+                            })
+                        });
+                        const data = await res.json();
+                        const joinedBoard = data.board || { id: boardId, name: boardId, canvasStyle: selectedOption };
+
+                        sessionStorage.setItem('currentBoardId', boardId);
+                        sessionStorage.setItem('currentCanvasStyle', joinedBoard.canvasStyle || selectedOption);
+                        sessionStorage.setItem('currentBoardName', joinedBoard.name || boardId);
+                        closeModal();
+                        window.location.href = `index.html?board=${encodeURIComponent(boardId)}`;
+                    } catch (e) {
+                        console.error('Error joining board:', e);
+                        createBtn.disabled = false;
+                    }
                     return;
                 }
 
-                const id = createBoardId(boards);
-                const board = {
-                    id,
-                    name,
-                    template: selectedOption,
-                    canvasStyle: selectedOption === 'blank' ? 'blank' : selectedOption,
-                    colorIndex: boards.length % boardColorPairs.length,
-                    created: Date.now()
-                };
-                boards.unshift(board);
-                localStorage.setItem('savedBoards', JSON.stringify(boards));
+                const id = createBoardId(cachedBoards);
+                const canvasStyle = selectedOption === 'blank' ? 'blank' : selectedOption;
+                const colorIndex = cachedBoards.length % boardColorPairs.length;
 
-                closeModal();
-                renderBoardList();
+                try {
+                    const res = await fetch('/api/boards', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            id,
+                            name,
+                            canvasStyle,
+                            colorIndex
+                        })
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.board) {
+                            cachedBoards.unshift(data.board);
+                        }
+                    }
+                    closeModal();
+                    renderBoardList();
+                } catch (e) {
+                    console.error('Error creating board:', e);
+                } finally {
+                    createBtn.disabled = false;
+                }
             });
         </script>
         <script src="cursor.js"></script>

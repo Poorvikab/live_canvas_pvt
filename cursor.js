@@ -116,7 +116,7 @@
         if (isCanvasPage()) {
             let userName = '';
             try {
-                const user = JSON.parse(localStorage.getItem('loggedInUser'));
+                const user = window.__currentUser;
                 if (user) {
                     userName = user.name || user.email?.split('@')[0] || '';
                 }

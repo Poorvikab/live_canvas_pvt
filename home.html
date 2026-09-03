@@ -1335,15 +1335,17 @@
         // Start Now button: redirect to login if not authenticated
         const startNowBtn = document.getElementById('startNow');
         if (startNowBtn) {
-            startNowBtn.addEventListener('click', (e) => {
+            startNowBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                const logged = localStorage.getItem('loggedInUser');
-                const target = 'saved.html';
-                if (logged) {
-                    window.location.href = target;
-                } else {
-                    const redirectUrl = `login.html?redirect=${encodeURIComponent(target)}`;
-                    window.location.href = redirectUrl;
+                try {
+                    const r = await fetch('/api/auth/me', { credentials: 'include' });
+                    if (r.ok) {
+                        window.location.href = 'saved.html';
+                    } else {
+                        window.location.href = `login.html?redirect=${encodeURIComponent('saved.html')}`;
+                    }
+                } catch {
+                    window.location.href = `login.html?redirect=${encodeURIComponent('saved.html')}`;
                 }
             });
         }

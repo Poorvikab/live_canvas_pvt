@@ -39,22 +39,7 @@ const enterRoomBtn =
 // ============================================================
 
 function getLoggedInUser() {
-
-    try {
-
-        return JSON.parse(
-            localStorage.getItem("loggedInUser")
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Could not read loggedInUser:",
-            error
-        );
-
-        return null;
-    }
+    return window.__currentUser || null;
 }
 
 

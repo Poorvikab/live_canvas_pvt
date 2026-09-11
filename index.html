@@ -12,7 +12,10 @@
     <title>LiveCanvas</title>
 
     <script>
-        if (!new URLSearchParams(window.location.search).has("board")) {
+        const indexParams = new URLSearchParams(window.location.search);
+        const indexBoardParam = indexParams.get("board") || indexParams.get("room");
+
+        if (!indexBoardParam) {
             window.location.replace("home.html");
         }
     </script>
@@ -430,6 +433,13 @@
             }
         } catch (e) {
             window.__currentUser = null;
+        }
+
+        var currentSearchParams = new URLSearchParams(window.location.search);
+        var currentBoardParam = currentSearchParams.get('board') || currentSearchParams.get('room');
+
+        if (!window.__currentUser && currentBoardParam) {
+            window.location.replace('signup.html?redirect=' + encodeURIComponent(window.location.href));
         }
     })();
 </script>

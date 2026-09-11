@@ -120,7 +120,7 @@ if (createRoomBtn) {
             if (roomLink) {
 
                 roomLink.value =
-                    roomId;
+                    `${window.location.origin}/index.html?board=${encodeURIComponent(roomId)}`;
 
             }
 
@@ -210,7 +210,7 @@ if (joinBtn) {
 
             // Open canvas
             window.location.href =
-                `index.html?room=${encodeURIComponent(code)}`;
+                `index.html?board=${encodeURIComponent(code)}`;
 
         }
     );
@@ -324,7 +324,7 @@ if (enterRoomBtn) {
 
 
             window.location.href =
-                `index.html?room=${encodeURIComponent(roomId)}`;
+                `index.html?board=${encodeURIComponent(roomId)}`;
 
         }
     );

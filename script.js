@@ -33,6 +33,7 @@ const urlParams = new URLSearchParams(window.location.search);
 
 const boardId =
     urlParams.get("board") ||
+    urlParams.get("room") ||
     sessionStorage.getItem("currentBoardId");
 
 function getSavedBoardCanvasStyle() {

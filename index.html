@@ -411,14 +411,15 @@
      JAVASCRIPT
 ===================================================== -->
 
-<script src="http://127.0.0.1:3000/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script src="config.js"></script>
 
 <!-- Hydrate session user synchronously before main script runs -->
 <script>
     (function () {
         try {
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', '/api/auth/me', false); // synchronous
+            xhr.open('GET', window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/me'), false); // synchronous
             xhr.withCredentials = true;
             xhr.send();
             if (xhr.status === 200) {

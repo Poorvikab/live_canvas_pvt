@@ -1007,6 +1007,7 @@
             </div>
         </div>
 
+        <script src="config.js"></script>
         <script>
             let currentUser = null;
             let cachedBoards = [];
@@ -1177,7 +1178,7 @@
 
             async function loadBoardsFromDB() {
                 try {
-                    const res = await fetch('/api/boards', { credentials: 'include' });
+                    const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/boards'), { credentials: 'include' });
                     if (res.ok) {
                         const data = await res.json();
                         cachedBoards = data.boards || [];
@@ -1191,7 +1192,7 @@
             // Auth verification & initialization
             async function initAuthAndBoards() {
                 try {
-                    const res = await fetch('/api/auth/me', { credentials: 'include' });
+                    const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/me'), { credentials: 'include' });
                     if (!res.ok) {
                         window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                         return;
@@ -1254,7 +1255,7 @@
 
             logoutBtn?.addEventListener('click', async () => {
                 try {
-                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' });
                 } catch (e) {}
                 window.location.href = 'login.html';
             });
@@ -1367,7 +1368,7 @@
                     }
 
                     try {
-                        const res = await fetch('/api/boards', {
+                        const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/boards'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
@@ -1398,7 +1399,7 @@
                 const colorIndex = cachedBoards.length % boardColorPairs.length;
 
                 try {
-                    const res = await fetch('/api/boards', {
+                    const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/boards'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',

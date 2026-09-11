@@ -8,6 +8,7 @@ require("dotenv").config();
 
 const express = require("express");
 const http = require("http");
+const cors = require("cors");
 const { Server } = require("socket.io");
 const path = require("path");
 const { Pool } = require("pg");
@@ -22,11 +23,27 @@ const bcrypt = require("bcrypt");
 
 const app = express();
 
+app.set("trust proxy", 1);
+
+const allowedOrigins = [
+    "https://live-canvas-pvt.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+];
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+                callback(null, true);
+                return;
+            }
+
+            callback(new Error("Origin not allowed by CORS"));
+        },
+        credentials: true,
         methods: ["GET", "POST"]
     }
 });
@@ -39,6 +56,8 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
+
+const isProduction = Boolean(process.env.RENDER) || process.env.NODE_ENV === "production";
 
 
 // ============================================================
@@ -96,6 +115,20 @@ initDB();
 // MIDDLEWARE
 // ============================================================
 
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error("Origin not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json({
     limit: "10mb"
 }));
@@ -111,7 +144,8 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        secure: false,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000
     }
 }));
@@ -2508,40 +2542,37 @@ function sanitizeBoardState(
 // START SERVER
 // ============================================================
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 
-server.listen(
-    PORT,
-    () => {
+module.exports = app;
 
-        console.log(
-            "============================================"
-        );
-
-        console.log(
-            "        LIVE CANVAS SERVER"
-        );
-
-        console.log(
-            "============================================"
-        );
-
-        console.log(
-            `Server running at: http://localhost:${PORT}`
-        );
-
-        console.log(
-            `Boards in memory: ${boards.size}`
-        );
-
-        console.log(
-            "Socket.IO: READY"
-        );
-
-        console.log(
-            "============================================"
-        );
-
-    }
-);
+if (require.main === module || !process.env.VERCEL) {
+    server.listen(
+        PORT,
+        "0.0.0.0",
+        () => {
+            console.log(
+                "============================================"
+            );
+            console.log(
+                "        LIVE CANVAS SERVER"
+            );
+            console.log(
+                "============================================"
+            );
+            console.log(
+                `Server running on port ${PORT}`
+            );
+            console.log(
+                `Boards in memory: ${boards.size}`
+            );
+            console.log(
+                "Socket.IO: READY"
+            );
+            console.log(
+                "============================================"
+            );
+        }
+    );
+}

@@ -235,7 +235,7 @@ function handleCanvasLogout() {
     if (socket) {
         socket.disconnect();
     }
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/logout'), { method: 'POST', credentials: 'include' })
         .finally(() => {
             window.location.href = 'login.html';
         });
@@ -586,7 +586,7 @@ if (
 
     socket =
         io(
-            window.location.origin,
+            window.LIVE_CANVAS_CONFIG.BACKEND_URL,
             {
                 transports: [
                     "websocket",
@@ -1543,7 +1543,7 @@ function applyCanvasStyle(style, sync = true) {
 
     // Keep the board canvas style synced in NeonDB.
     if (sync && boardId) {
-        fetch(`/api/boards/${boardId}`, {
+        fetch(window.LIVE_CANVAS_CONFIG.apiUrl(`/api/boards/${boardId}`), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -4025,7 +4025,7 @@ function saveLocalCache() {
 
         // Sync board name to NeonDB
         if (boardId) {
-            fetch(`/api/boards/${boardId}`, {
+            fetch(window.LIVE_CANVAS_CONFIG.apiUrl(`/api/boards/${boardId}`), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

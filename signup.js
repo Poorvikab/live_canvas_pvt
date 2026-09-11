@@ -64,14 +64,20 @@ signupBtn.addEventListener("click", async function () {
     signupBtn.textContent = "Creating account...";
 
     try {
-        const res = await fetch("/api/auth/signup", {
+        const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/signup'), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ name, email, password })
         });
 
-        const data = await res.json();
+        let data = {};
+        try {
+            data = await res.json();
+        } catch (jsonErr) {
+            setFormMessage("Server returned unexpected response (status " + res.status + ").");
+            return;
+        }
 
         if (!res.ok) {
             setFormMessage(data.error || "Signup failed.");

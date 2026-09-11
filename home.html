@@ -1156,6 +1156,7 @@
         <div class="cursor-label" id="cursorLabel"></div>
     </div>
 
+    <script src="config.js"></script>
     <script>
         /* ── Text animations ───────────────────────────── */
         function animateLetters(id, delay = 0) {
@@ -1338,7 +1339,7 @@
             startNowBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 try {
-                    const r = await fetch('/api/auth/me', { credentials: 'include' });
+                    const r = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/me'), { credentials: 'include' });
                     if (r.ok) {
                         window.location.href = 'saved.html';
                     } else {

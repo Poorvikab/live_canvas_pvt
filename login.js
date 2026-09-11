@@ -45,14 +45,20 @@ if (loginBtn) {
         loginBtn.textContent = "Logging in...";
 
         try {
-            const res = await fetch("/api/auth/login", {
+            const res = await fetch(window.LIVE_CANVAS_CONFIG.apiUrl('/api/auth/login'), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify({ email, password })
             });
 
-            const data = await res.json();
+            let data = {};
+            try {
+                data = await res.json();
+            } catch (jsonErr) {
+                setFormMessage("Server returned unexpected response (status " + res.status + ").");
+                return;
+            }
 
             if (!res.ok) {
                 setFormMessage(data.error || "Login failed.");
